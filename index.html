@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DTC Workbench</title>
+<meta name="description" content="Read OBD-II fault codes from an ELM327 scanner and produce a printable diagnostic report with causes and fixes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/report.css" id="reportCssLink">
+<link rel="stylesheet" href="css/app.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h3l2-3h8l2 3h3l2 3v5h-2v2h-3l-2-2H10l-2 2H5v-4H3v-4h2z"/><path d="M12 14h6"/></svg>
+      DTC Workbench <small id="verTxt"></small>
+    </div>
+    <div class="status" aria-live="polite">
+      <span><i class="dot" id="connDot"></i><span id="connTxt">Not connected</span></span>
+      <span><b>PROTOCOL</b><span id="protoTxt">—</span></span>
+      <span><b>ADAPTER</b><span id="adapterTxt">—</span></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <aside class="side">
+    <section class="panel">
+      <h2><span class="step">1</span>Connect scanner</h2>
+      <div id="supportWarn" class="warnbox" hidden></div>
+      <div class="fgrid">
+        <label class="f">Connection
+          <select id="connType">
+            <option value="serial">USB / serial cable</option>
+            <option value="ble">Bluetooth LE adapter</option>
+            <option value="sim">Simulator (demo car)</option>
+          </select>
+        </label>
+        <label class="f" id="baudWrap">Baud rate
+          <select id="baud">
+            <option>38400</option><option>9600</option><option>115200</option><option>500000</option>
+          </select>
+        </label>
+        <label class="f full" id="simWrap" hidden>Demo car
+          <select id="simScenario"></select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="btnConnect">Connect</button>
+        <button class="btn" id="btnDisconnect" disabled>Disconnect</button>
+      </div>
+      <p class="small" id="connHelp">Works with ELM327-compatible adapters. Plug in, ignition on (engine running for live data), then connect.</p>
+      <div class="simbox" id="simNote" hidden>Simulator mode: no scanner needed. The demo car answers exactly like a real adapter, so you can practise or show a client how the report works. Reports from the simulator are marked as demo data.</div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="step">2</span>Read the vehicle</h2>
+      <div class="row">
+        <button class="btn primary" id="btnScan" disabled>Run full scan</button>
+        <button class="btn" id="btnLive" disabled>Refresh live data</button>
+        <button class="btn danger" id="btnClear" disabled>Clear codes</button>
+      </div>
+      <div class="confirm" id="clearConfirm" hidden>
+        <strong>Clear all fault codes?</strong> This erases stored codes, freeze-frame data and readiness monitors. The check-engine light turns off, and the car may fail an emissions test until monitors reset after a drive cycle. Do this only after a repair.
+        <div class="row" style="margin-top:8px">
+          <button class="btn danger" id="btnClearYes">Yes, clear codes</button>
+          <button class="btn" id="btnClearNo">Cancel</button>
+        </div>
+      </div>
+      <details style="margin-top:12px">
+        <summary>Scanner traffic log</summary>
+        <pre class="log" id="log">No traffic yet.</pre>
+        <div class="row" style="margin-top:6px"><button class="btn sm" id="btnLog">Download log</button></div>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2><span class="step">3</span>Fault codes</h2>
+      <div class="fgrid">
+        <label class="f full">Add codes by hand
+          <input id="manualCodes" placeholder="e.g. P0301, P0420 C0035" autocomplete="off">
+        </label>
+        <label class="f">Status
+          <select id="manualStatus"><option>Stored</option><option>Pending</option><option>Permanent</option></select>
+        </label>
+        <div style="display:flex;align-items:flex-end"><button class="btn" id="btnAdd" style="width:100%;justify-content:center">Add codes</button></div>
+      </div>
+      <ul class="codes" id="codeList"></ul>
+    </section>
+
+    <section class="panel">
+      <h2><span class="step">4</span>Vehicle &amp; job details</h2>
+      <div class="fgrid">
+        <label class="f full">Workshop / business<input id="v_shop"></label>
+        <label class="f">Customer<input id="v_customer"></label>
+        <label class="f">Technician<input id="v_tech"></label>
+        <label class="f">Make<input id="v_make"></label>
+        <label class="f">Model<input id="v_model"></label>
+        <label class="f">Year<input id="v_year" inputmode="numeric"></label>
+        <label class="f">Registration<input id="v_reg"></label>
+        <label class="f">Odometer (km)<input id="v_odo" inputmode="numeric"></label>
+        <label class="f">VIN<input id="v_vin" maxlength="17" style="font-family:var(--f-mono)"></label>
+        <label class="f full">Customer complaint / notes<textarea id="v_notes" rows="3"></textarea></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Saved reports</h2>
+      <div class="row"><button class="btn" id="btnSave">Save this report</button><button class="btn" id="btnNew">Start new report</button></div>
+      <ul class="hist" id="hist"></ul>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <span class="lbl">Diagnostic report</span>
+      <button class="btn primary" id="btnPrint">Print / Save as PDF</button>
+      <button class="btn" id="btnHtml">Download report (.html)</button>
+      <button class="btn" id="btnCsv">Download codes (.csv)</button>
+      <button class="btn" id="btnTxt">Download text (.txt)</button>
+    </div>
+    <div class="sample" id="sampleNote">Showing a sample vehicle so you can see the report. Connect your scanner and run a scan, try the simulator, or add codes by hand to replace it.</div>
+    <article class="rpt sheet" id="report"></article>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+</body>
+</html>
